@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Define sample values
+COUNTRY_NAME="US"
+STATE_OR_PROVINCE_NAME="California"
+LOCALITY_NAME="San Francisco"
+ORGANIZATION_NAME="Acme Corp"
+DOMAIN_NAME="example.com"
+HOST_NAME="web-server"
+ALT_HOST_NAME="www.example.com"
+HOST_IP="192.168.1.100"
+EXPIRE_DAYS="365"
+
+rm -rf root-cert/ web-server/
+
+# Call make-certificates and push sample values into the stdin
+./make-certificates << EOF
+$COUNTRY_NAME
+$STATE_OR_PROVINCE_NAME
+$LOCALITY_NAME
+$ORGANIZATION_NAME
+$DOMAIN_NAME
+$HOST_NAME
+$ALT_HOST_NAME
+$HOST_IP
+$EXPIRE_DAYS
+EOF
+

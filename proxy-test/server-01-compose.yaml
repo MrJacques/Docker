@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  webserver:
+    image: nginx
+    networks:
+      myPrivateNet:
+        aliases:
+          - webserver01
+
+networks:
+  myPrivateNet:
+    external: true
+

@@ -1,0 +1,18 @@
+version: '3'
+services:
+  proxy:
+    image: nginx
+    ports:
+      - "1000:1000"
+      - "1001:1001"
+    networks:
+      - default
+      - myPrivateNet
+    volumes:
+      - /home/${USER}/docker/nginx.conf:/etc/nginx/nginx.conf
+      - /home/${USER}/docker/ssl:/etc/nginx/ssl
+
+networks:
+  myPrivateNet:
+    external: true
+

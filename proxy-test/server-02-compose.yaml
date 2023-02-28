@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  webserver:
+    image: nginx
+    volumes:
+      - /home/${USER|/docker/server2-default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      myPrivateNet:
+        aliases:
+          - webserver02
+
+networks:
+  myPrivateNet:
+    external: true

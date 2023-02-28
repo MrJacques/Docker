@@ -1,0 +1,189 @@
+#!/bin/bash
+
+# Copyright (c) 2023 jp@cleverfirefly. All rights reserved. 
+# This code may be used and modified with attribution.
+
+if ! command -v openssl &> /dev/null; then
+    echo "OpenSSL is not installed. Please run the following command to install it:"
+    echo "sudo apt-get install openssl"
+    exit 11
+fi
+
+# location to store signing certificate & key
+export ROOT_FOLDER="root-cert"
+
+read -p "Enter Country Name (2 letter code): " country_name
+read -p "Enter State or Province Name (full name): " state_or_province_name
+read -p "Enter Locality Name (eg, city): " locality_name
+read -p "Enter Organization Name (eg, company): " organization_name
+read -p "Enter SubjectAltName/Domain Name (eg, example.com): " domain_name
+
+if [[ -z "$domain_name" ]]; then
+  echo "ERROR: Without a SubjectAltName the resulting certs will be untrusted."
+  exit 12
+fi
+if [[ ! $domain_name =~ ^[a-zA-Z0-9.-]+$ ]]; then
+  echo "ERROR: Domain name must contain only alphanumeric characters, hyphens, and periods"
+  exit 13
+fi
+
+read -p "Enter Host Name (eg, dev-server): " host_name
+
+if [[ -z "$host_name" ]]; then
+  echo "ERROR: If the Host Name doesn't match the URL it won't be trusted."
+  exit 14
+fi
+if [[ ! $host_name =~ ^[a-zA-Z0-9.-]+$ ]]; then
+  echo "ERROR: Host name must contain only alphanumeric characters, hyphens, and periods"
+  exit 15
+fi
+
+read -p "Enter Alternative Host Name (eg, dev-server.local): " alt_host_name
+read -p "Enter Host IP (eg, 192.168.1.99): " host_ip
+read -p "Enter Days Till Certificates Will Expire (eg, 365): " expire_days
+
+export COUNTRY_NAME="$country_name"
+export STATE_OR_PROVINCE_NAME="$state_or_province_name"
+export LOCALITY_NAME="$locality_name"
+export ORGANIZATION_NAME="$organization_name"
+export DOMAIN_NAME="$domain_name"
+export HOST_NAME="$host_name"
+export ALT_HOST_NAME="$alt_host_name"
+export HOST_IP="$host_ip"
+export EXPIRE_DAYS="$expire_days"
+
+if [[ -f "$HOST_NAME/server.key" ]]; then
+  echo "ERROR: Server key \"$HOST_NAME/server.key\" already exist.  Aborting."
+  exit 17
+fi
+
+mkdir -p $HOST_NAME
+mkdir -p "$ROOT_FOLDER"
+
+envsubst < cert-template.conf > $HOST_NAME/cert.conf
+envsubst < csr-template.conf > $HOST_NAME/csr.conf
+
+CREATE_ROOTCA=true
+
+if [[ -f "$ROOT_FOLDER/rootCA.key" || -f "$ROOT_FOLDER/rootCA.crt" ]]; then
+  CREATE_ROOTCA=false
+  echo "rootCA.key and/or rootCA.crt already exists. These should only"
+  echo "be created once per your organization then used to sign all of your"
+  echo "keys."
+  echo ""
+  read -p "Do you REALLY want to overwrite? (y/N) " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    CREATE_ROOTCA=true
+  fi
+fi
+
+# Generate a self-signed root certificate authority (CA) with OpenSSL.
+# The -x509 option specifies that a self-signed certificate is being generated.
+# The -sha256 option specifies that the SHA-256 algorithm should be used for the signature.
+# The -days option specifies the number of days the certificate should be valid.
+# The -nodes option specifies that the private key should not be encrypted.
+# The -newkey option specifies that a new key should be generated along with the certificate.
+# The rsa:2048 option specifies that the key should be 2048 bits and generated using RSA.
+# The -subj option specifies the subject of the certificate.
+# The /CN option specifies the common name, which is the domain name.
+# The /C option specifies the country.
+# The /ST option specifies the state or province.
+# The /L option specifies the locality.
+# The -keyout option specifies the file name to write the private key to.
+# The -out option specifies the file name to write the certificate to.
+if [ "$CREATE_ROOTCA" = true ]; then
+	openssl req -x509 \
+				-sha256 -days $EXPIRE_DAYS \
+				-nodes \
+				-newkey rsa:2048 \
+				-subj "/CN=$DOMAIN_NAME/C=$COUNTRY_NAME/ST=$STATE_OR_PROVINCE_NAME/L=$LOCALITY_NAME" \
+				-keyout "$ROOT_FOLDER/rootCA.key" -out "$ROOT_FOLDER/rootCA.crt"
+fi
+
+if [[ ! -f "$ROOT_FOLDER/rootCA.key" || ! -f "$ROOT_FOLDER/rootCA.crt" ]]; then
+  echo "ERROR: Failed to create rootCA.key or rootCA.crt"
+  exit 16
+fi
+
+# Generate a new RSA private key with 2048 bits of encryption 
+# and save it to 'server.key' 
+openssl genrsa -out $HOST_NAME/server.key 2048
+
+if [[ ! -f "$HOST_NAME/server.key" ]]; then
+  echo "ERROR: Failed to create $HOST_NAME/server.key"
+  exit 17
+fi
+
+export UNSIGNED_CSR="$ROOT_FOLDER/$HOST_NAME-unsigned.csr"
+
+# Generate a certificate signing request (CSR) with OpenSSL.
+# The -new option specifies that a new CSR is being generated.
+# The -key option specifies the private key to create.
+# The -out option specifies the file name to write the CSR to.
+# The -config option specifies the configuration file to use.
+openssl req \
+        -new \
+		-key $HOST_NAME/server.key \
+		-out $UNSIGNED_CSR -config $HOST_NAME/csr.conf
+
+if [[ ! -f "$HOST_NAME/server.key" ]]; then
+  echo "ERROR: Failed to create $HOST_NAME/server.key"
+  exit 17
+fi
+if [[ ! -f "$UNSIGNED_CSR" ]]; then
+  echo "ERROR: Failed to create $UNSIGNED_CSR"
+  exit 18
+fi
+
+# Generate a certificate with OpenSSL signed by the root CA.
+# The -req option specifies that a certificate is being generated from a CSR.
+# The -in option specifies the input file (the CSR).
+# The -CA option specifies the root CA certificate.
+# The -CAkey option specifies the root CA private key.
+# The -CAcreateserial option specifies that a serial number should be generated.
+# The -out option specifies the file name to write the certificate to.
+# The -days option specifies the number of days the certificate should be valid.
+# The -sha256 option specifies that the SHA-256 algorithm should be used for the signature.
+# The -extfile option specifies the file containing the extensions to be added to the certificate.
+openssl x509 -req \
+    -in "$UNSIGNED_CSR" \
+    -CA "$ROOT_FOLDER"/rootCA.crt \
+	-CAkey "$ROOT_FOLDER"/rootCA.key \
+    -CAcreateserial -out $HOST_NAME/server.crt \
+    -days $EXPIRE_DAYS \
+    -sha256\
+	-extfile $HOST_NAME/cert.conf
+
+if [[ ! -f "$HOST_NAME/server.crt" ]]; then
+  echo "ERROR: Failed to create $HOST_NAME/server.key"
+  exit 19
+fi
+
+echo ""
+echo ""
+echo "Done."
+echo ""
+echo ""
+echo "The files in the $ROOT_FOLDER/ folder are used to sign the server keys."
+echo "It is very important to that these files are protected and kept private."
+echo "The keys $ROOT_FOLDER\ can be used to sign all the server keys you make."
+echo ""
+echo "The "$ROOT_FOLDER"/rootCA.crt file should be imported into your browser or operating system."
+echo ""
+echo "The $HOST_NAME/server.crt and and $HOST_NAME/server.key are your"
+echo "$HOST_NAME public and private keys respectively.  Keep the private key"
+echo "protected and private."
+echo ""
+echo "Your server will need to updated with something like:"
+echo ""
+echo "server {"
+echo "   server_name $HOST_NAME;"
+echo "   ssl on;"
+echo "   ssl_certificate /etc/ssl/server.crt;"
+echo "   ssl_certificate_key /etc/ssl/server.key;"
+echo "}"
+echo ""
+echo "Source: https://devopscube.com/create-self-signed-certificates-openssl"
+echo "Source: https://serverfault.com/questions/845766/generating-a-self-signed-cert-with-openssl-that-works-in-chrome-58"
+

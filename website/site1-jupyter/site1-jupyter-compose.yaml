@@ -1,0 +1,26 @@
+version: '3.9'
+
+services:
+  jupyter:
+    image: jupyter/datascience-notebook
+    container_name: jupyter
+    restart: always
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN}
+    volumes:
+      - "${JUPYTER_DIR}/notebooks2/:/home/jovyan/work"
+      - home:/home/jovyan
+    command: >
+      start-notebook.sh --NotebookApp.base_url=/jupyter 
+      --NotebookApp.token=${JUPYTER_TOKEN} 
+    networks:
+      - nginx-network
+
+volumes:
+  home:
+
+networks:
+  nginx-network:
+    external: true

@@ -1,0 +1,26 @@
+version: '3.9'
+
+services:
+  nginx-certbot:
+    image: jonasal/nginx-certbot
+    restart: always
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "10"    
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CERTBOT_EMAIL=certbot@cleverfirefly.com
+      - STAGING=0 # Use 1 for testing, 0 for production
+    volumes:
+      - ${NGINX_DIR}/conf.d:/etc/nginx/user_conf.d:ro
+      - ${SSL_DIR}:/etc/letsencrypt/live
+    networks:
+      - nginx-network
+
+networks:
+  nginx-network:
+    external: true

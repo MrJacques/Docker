@@ -1,0 +1,20 @@
+version: '3.7'
+
+services:
+  filebrowser:
+    image: hurlenko/filebrowser
+    container_name: filebrowser
+    user: "${UID}:${GID}"
+    volumes:
+      - ${FILEBROWSER_DIR}/data:/data
+      - /${FILEBROWSER_DIR}/config:/config
+    environment:
+      - FB_BASEURL=/fb
+    restart: unless-stopped
+
+    networks:
+      - nginx-network
+
+networks:
+  nginx-network:
+    external: true

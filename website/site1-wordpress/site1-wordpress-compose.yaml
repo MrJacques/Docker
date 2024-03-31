@@ -1,0 +1,41 @@
+version: '3.9'
+
+services:
+  db:
+    image: mysql
+    restart: always
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+      MYSQL_DATABASE: wp-${Site1}-org
+      MYSQL_USER: user-${Site1}-org
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: America/New_York
+    volumes:
+      - wp-${Site1}-db:/var/lib/mysql
+    networks:
+      - nginx-network
+
+  wordpress:
+    image: wordpress
+    depends_on:
+      - db
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: wp-${Site1}-org
+      WORDPRESS_DB_USER: user-${Site1}-org
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      TZ: America/New_York
+    volumes:
+      #- "${WORDPRESS_DIR}/wp-config.php:/var/www/html/wp-config.php"
+      - wp-${Site1}-html:/var/www/html
+    networks:
+      - nginx-network
+
+networks:
+  nginx-network:
+    external: true
+
+volumes:
+  wp-${Site1}-html:
+  wp-${Site1}-db:

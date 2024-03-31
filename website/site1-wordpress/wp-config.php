@@ -10,8 +10,8 @@ if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
     $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
 }
 
-define('WP_HOME','https://javin.org/');
-define('WP_SITEURL','https://javin.org/');
+define('WP_HOME','https://${Site1Domain}/');
+define('WP_SITEURL','https://${Site1Domain}/');
 
 /**
  * The base configuration for WordPress
